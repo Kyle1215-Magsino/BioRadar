@@ -128,6 +128,7 @@ $(document).ready(function() {
         responsive: true,
         order: [[3, 'desc']],
         pageLength: 25,
+        pagingType: 'simple_numbers',
         dom: 'Blfrtip',
         buttons: [
             {
@@ -179,12 +180,13 @@ $(document).ready(function() {
         }
     });
 
-    // SweetAlert for delete confirmation
+    // SweetAlert for delete confirmation (AJAX)
     $(document).on('click', '.delete-btn', function(e) {
         e.preventDefault();
         var form = $(this).closest('form');
         var userName = $(this).data('user-name');
-        
+        var $btn = $(this);
+
         Swal.fire({
             title: 'Delete User?',
             text: 'Are you sure you want to delete ' + userName + '? This action cannot be undone!',
@@ -196,7 +198,47 @@ $(document).ready(function() {
             cancelButtonText: 'Cancel'
         }).then((result) => {
             if (result.isConfirmed) {
-                form.submit();
+                // Disable button while request is in progress
+                $btn.prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+
+                // Prepare payload (include _method)
+                var action = form.attr('action');
+
+                $.ajax({
+                    url: action,
+                    type: 'POST',
+                    data: {
+                        _method: 'DELETE'
+                    },
+                    success: function(response) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Deleted',
+                            text: (response && response.message) ? response.message : 'User deleted successfully.',
+                            confirmButtonColor: '#40C9A2',
+                            timer: 2000,
+                            timerProgressBar: true
+                        });
+
+                        // Remove row from DataTable
+                        var row = form.closest('tr');
+                        table.row(row).remove().draw(false);
+                    },
+                    error: function(xhr) {
+                        console.error(xhr);
+                        var message = 'An error occurred while deleting the user.';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: message,
+                            confirmButtonColor: '#ef4444'
+                        });
+                        $btn.prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
+                    }
+                });
             }
         });
     });
